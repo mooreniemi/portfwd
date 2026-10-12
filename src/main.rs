@@ -18,7 +18,7 @@ use crossterm::{
 };
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState},
+    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState, Wrap},
 };
 use serde::{Deserialize, Serialize};
 
@@ -262,6 +262,8 @@ struct Probe {
 enum Mode {
     Normal,
     Discover(Disc),
+    /// Full, untruncated details for one forward: (title, label/value pairs).
+    View(String, Vec<(&'static str, String)>),
     /// (index being edited or None for new, field values, active field)
     Form(Option<usize>, [String; 5], usize),
     ConfirmDelete(usize),
@@ -508,6 +510,38 @@ impl App {
                         self.mode = Mode::ConfirmDelete(i);
                     }
                 }
+                KeyCode::Char('v') => {
+                    if let Some(i) = self.selected() {
+                        let e = &self.entries[i];
+                        let f = &e.fwd;
+                        let status = match &e.state {
+                            State::Off => "off".to_string(),
+                            State::Running(c) => format!("on (ssh pid {})", c.id()),
+                            State::Failed(m) => format!("failed: {m}"),
+                        };
+                        let remote = match self.remote_up(f) {
+                            Some(true) => "✓ listening".to_string(),
+                            Some(false) => "⚠ not listening".to_string(),
+                            None => "unknown".to_string(),
+                        };
+                        let fields = vec![
+                            ("Name", f.name.clone()),
+                            ("SSH host", f.host.clone()),
+                            ("Local", format!("localhost:{}", f.local_port)),
+                            ("Remote", format!("{}:{}", f.remote_host, f.remote_port)),
+                            ("Status", status),
+                            ("Remote port", remote),
+                            (
+                                "Command",
+                                format!(
+                                    "ssh -N -L {}:{}:{} {}",
+                                    f.local_port, f.remote_host, f.remote_port, f.host
+                                ),
+                            ),
+                        ];
+                        self.mode = Mode::View(f.name.clone(), fields);
+                    }
+                }
                 KeyCode::Char('s') => {
                     let mut hosts: Vec<String> = vec![];
                     for e in &self.entries {
@@ -535,6 +569,11 @@ impl App {
                 _ => {}
             },
             Mode::Discover(_) => {}
+            Mode::View(..) => {
+                if matches!(code, KeyCode::Esc | KeyCode::Char('q' | 'v') | KeyCode::Enter) {
+                    self.mode = Mode::Normal;
+                }
+            }
             Mode::ConfirmDelete(i) => {
                 let i = *i;
                 if matches!(code, KeyCode::Char('y')) {
@@ -654,7 +693,7 @@ impl App {
         .block(Block::default().borders(Borders::ALL).title(" portfwd "));
         f.render_stateful_widget(table, chunks[0], &mut self.table);
 
-        let help = "↑/↓ move · space/enter toggle · s scan host · a add · e edit · d delete · q quit";
+        let help = "↑/↓ move · space/enter toggle · v view · s scan host · a add · e edit · d delete · q quit";
         f.render_widget(
             Paragraph::new(vec![
                 Line::styled(help, Style::default().fg(Color::DarkGray)),
@@ -821,6 +860,27 @@ impl App {
                         .title_bottom(hint),
                 );
                 f.render_stateful_widget(found, parts[1], &mut d.table);
+            }
+            Mode::View(title, fields) => {
+                let area = centered(f.area(), 76, fields.len() as u16 + 10);
+                f.render_widget(Clear, area);
+                let mut lines: Vec<Line> = fields
+                    .iter()
+                    .map(|(l, v)| {
+                        Line::from(vec![
+                            Span::styled(format!("{l:>12}: "), Style::default().add_modifier(Modifier::BOLD)),
+                            Span::raw(v.clone()),
+                        ])
+                    })
+                    .collect();
+                lines.push(Line::raw(""));
+                lines.push(Line::styled("esc/v close", Style::default().fg(Color::DarkGray)));
+                f.render_widget(
+                    Paragraph::new(lines)
+                        .wrap(Wrap { trim: false })
+                        .block(Block::default().borders(Borders::ALL).title(format!(" {title} "))),
+                    area,
+                );
             }
             Mode::Normal => {}
         }

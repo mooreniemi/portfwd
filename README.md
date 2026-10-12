@@ -35,6 +35,7 @@ portfwd
 | `↑` `↓` / `j` `k` | Move selection |
 | `space` / `enter` | Toggle the selected forward on/off |
 | `s` | Scan the selected forward's host (see below) |
+| `v` | View all details for the selected forward (untruncated status, full command) |
 | `a` | Add a forward |
 | `e` | Edit a forward (restarts it if running) |
 | `d` | Delete a forward (asks for `y` to confirm) |
