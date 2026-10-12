@@ -3,6 +3,7 @@ name = "portfwd"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+repository = "https://github.com/mooreniemi/portfwd"
 description = "TUI for managing and discovering SSH port forwards"
 
 [dependencies]
