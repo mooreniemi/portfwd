@@ -6,6 +6,7 @@ It shells out to your system `ssh`, so everything in your `~/.ssh/config` (host 
 
 ## Features
 
+- **Hosts section.** Hosts are read from `~/.ssh/config` (including `Include`d files). Enable the ones you care about; only enabled hosts are polled, scannable and usable for forwards.
 - **Saved forwards.** Name them once, toggle them any time.
 - **On/off at a glance.** Each forward shows `● on`, `○ off`, or `✗ <ssh error>`.
 - **Remembers state.** Forwards that were on when you quit come back on at next launch.
@@ -34,7 +35,7 @@ portfwd
 | --- | --- |
 | `↑` `↓` / `j` `k` | Move selection |
 | `space` / `enter` | Toggle the selected forward on/off |
-| `s` | Scan the selected forward's host (see below) |
+| `tab` | Switch between the Forwards and Hosts sections |
 | `v` | View all details for the selected forward (untruncated status, full command) |
 | `a` | Add a forward |
 | `e` | Edit a forward (restarts it if running) |
@@ -47,9 +48,24 @@ A forward is a name, an SSH host (any alias from `~/.ssh/config`), a local port,
 ssh -N -L <local_port>:<remote_host>:<remote_port> <host>
 ```
 
+### Hosts section
+
+Press `tab` to move focus to the Hosts section below the forwards. It lists every concrete `Host` from `~/.ssh/config` (wildcard patterns like `Host *` are skipped), plus any host used by a saved forward that isn't in your ssh config. Each host shows whether it's enabled, its `HostName`, how many forwards it has, and (when enabled) whether the last poll could reach it.
+
+| Key | Action |
+| --- | --- |
+| `↑` `↓` / `j` `k` | Move selection |
+| `space` / `enter` | Enable or disable the host |
+| `s` | Scan this host |
+| `a` | Add a forward on this host |
+| `r` | Re-read `~/.ssh/config` |
+| `tab` / `esc` | Back to forwards |
+
+Disabling a host stops its running forwards, stops polling it, and prevents its forwards from being turned on until you re-enable it. Hosts that already have saved forwards start out enabled; other hosts from your ssh config start disabled so a long config doesn't get polled all at once. In the add form, `←`/`→` on the Host field cycles through enabled hosts, and saving a forward enables its host.
+
 ### Scanning a host
 
-Press `s` to open the scan popup. It connects to the host, lists listening TCP ports, and refreshes every 5 seconds. It has two sections:
+Scanning is a per-host action: press `tab` to go to the Hosts section, highlight a host and press `s` to open the scan popup. It connects to the host, lists listening TCP ports, and refreshes every 5 seconds. It has two sections:
 
 - **Configured** (green): your saved forwards for that host, with whether the remote port is currently listening (`✓ listening` / `⚠ not listening`).
 - **Discovered, not configured** (cyan): ports found by the scan that you haven't set up yet.
@@ -67,20 +83,27 @@ When you forward a discovered port, the local port defaults to the same number, 
 
 ## Config
 
-Forwards are stored as JSON in your OS config directory, e.g. `~/Library/Application Support/portfwd/config.json` on macOS or `~/.config/portfwd/config.json` on Linux:
+Forwards and host settings are stored as JSON in your OS config directory, e.g. `~/Library/Application Support/portfwd/config.json` on macOS or `~/.config/portfwd/config.json` on Linux:
 
 ```json
-[
-  {
-    "name": "jupyter",
-    "host": "rose",
-    "local_port": 8888,
-    "remote_host": "localhost",
-    "remote_port": 8888,
-    "autostart": false
-  }
-]
+{
+  "hosts": { "rose": true, "gpu": false },
+  "forwards": [
+    {
+      "name": "jupyter",
+      "host": "rose",
+      "local_port": 8888,
+      "remote_host": "localhost",
+      "remote_port": 8888,
+      "autostart": false
+    }
+  ]
+}
 ```
+
+On first run (no config yet) a sample `jupyter` forward (rose, port 8888) is created; delete or edit it freely.
+
+The older format (a bare list of forwards) is still read and is upgraded the next time something is saved.
 
 `autostart` is updated automatically to reflect which forwards were on the last time you changed anything or quit. You can edit the file by hand while portfwd isn't running.
 
